@@ -15,7 +15,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest  # Changed to Windows runner
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -29,17 +29,16 @@ jobs:
       run: |
         cd app
         pip install -r requirements.txt
-        
 
     - name: Run tests
       run: |
-        cd app
+        cd app/tests
         python -m pytest tests/ -v
 
   build-and-deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Keep Ubuntu for Docker builds
     environment: production
 
     steps:
@@ -110,7 +109,7 @@ jobs:
   rollback:
     needs: build-and-deploy
     if: failure()
-    runs-on: ubuntu-latest
+    runs-on: windows-latest  # Changed to Windows runner
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -125,9 +124,9 @@ jobs:
     - name: Rollback ECS service
       run: |
         # Get the previous task definition ARN
-        PREVIOUS_TASK_DEF=$(aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }} --query "services[0].deployments[?status=='PRIMARY'].taskDefinition" --output text)
+        $previousTaskDef = aws ecs describe-services --cluster $env:ECS_CLUSTER --services $env:ECS_SERVICE --query "services[0].deployments[?status=='PRIMARY'].taskDefinition" --output text
         
         # Update service to use previous task definition
-        aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --task-definition $PREVIOUS_TASK_DEF --force-new-deployment
+        aws ecs update-service --cluster $env:ECS_CLUSTER --service $env:ECS_SERVICE --task-definition $previousTaskDef --force-new-deployment
         
-        echo "Rollback initiated to previous task definition: $PREVIOUS_TASK_DEF"
+        echo "Rollback initiated to previous task definition: $previousTaskDef"

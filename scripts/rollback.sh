@@ -1,30 +1,29 @@
-#!/bin/bash
-# Rollback script for ECS service
+# Rollback script for ECS service (Windows PowerShell version)
 
-set -e
+$ErrorActionPreference = "Stop"
 
-AWS_REGION="us-east-1"
-CLUSTER_NAME="python-web-app-cluster"
-SERVICE_NAME="python-web-app-service"
+$AWSRegion = "us-east-1"
+$ClusterName = "python-web-app-cluster"
+$ServiceName = "python-web-app-service"
 
-echo "Starting rollback process..."
+Write-Host "Starting rollback process..."
 
 # Get the previous task definition ARN
-PREVIOUS_TASK_DEF=$(aws ecs describe-services --region $AWS_REGION --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[?status=='PRIMARY'].taskDefinition" --output text)
+$PreviousTaskDef = aws ecs describe-services --region $AWSRegion --cluster $ClusterName --services $ServiceName --query "services[0].deployments[?status=='PRIMARY'].taskDefinition" --output text
 
-if [ -z "$PREVIOUS_TASK_DEF" ]; then
-    echo "Error: Could not find previous task definition"
+if ([string]::IsNullOrEmpty($PreviousTaskDef)) {
+    Write-Host "Error: Could not find previous task definition"
     exit 1
-fi
+}
 
-echo "Rolling back to task definition: $PREVIOUS_TASK_DEF"
+Write-Host "Rolling back to task definition: $PreviousTaskDef"
 
 # Update service to use previous task definition
-aws ecs update-service --region $AWS_REGION --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $PREVIOUS_TASK_DEF --force-new-deployment
+aws ecs update-service --region $AWSRegion --cluster $ClusterName --service $ServiceName --task-definition $PreviousTaskDef --force-new-deployment
 
-echo "Rollback initiated successfully. Monitoring deployment..."
+Write-Host "Rollback initiated successfully. Monitoring deployment..."
 
 # Wait for service to stabilize
-aws ecs wait services-stable --region $AWS_REGION --cluster $CLUSTER_NAME --services $SERVICE_NAME
+aws ecs wait services-stable --region $AWSRegion --cluster $ClusterName --services $ServiceName
 
-echo "Rollback completed successfully."
+Write-Host "Rollback completed successfully."
