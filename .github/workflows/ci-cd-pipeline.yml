@@ -34,10 +34,48 @@ jobs:
         cd app
         python -m pytest tests/ -v
 
-  build-and-deploy:
+  infrastructure:
+    runs-on: ubuntu-latest
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.0
+
+    - name: Terraform Init
+      run: terraform init
+      working-directory: ./infrastructure
+
+    - name: Terraform Plan
+      run: terraform plan -input=false
+      working-directory: ./infrastructure
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve -input=false
+      working-directory: ./infrastructure
+
+    - name: Get Terraform outputs
+      run: |
+        echo "ECR_REPOSITORY_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
+        echo "CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain)" >> $GITHUB_ENV
+      working-directory: ./infrastructure
+
+  build-and-deploy:
     runs-on: ubuntu-latest
+    needs: infrastructure
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
 
     steps:
@@ -51,11 +89,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
-    - name: Create ECR repository if it doesn't exist
-      run: |
-        # Check if repository exists, create if it doesn't
-        aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} --region ${{ env.AWS_REGION }} || aws ecr create-repository --repository-name ${{ env.ECR_REPOSITORY }} --region ${{ env.AWS_REGION }}
-
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -65,34 +98,17 @@ jobs:
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-        IMAGE_TAG: ${{ github.sha }}
+        IMAGE_TAG: latest
       run: |
         cd app
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-    - name: Download task definition
-      run: |
-        # Check if task definition exists, create basic one if it doesn't
-        if ! aws ecs describe-task-definition --task-definition ${{ env.RESOURCE_PREFIX }} --region ${{ env.AWS_REGION }}; then
-          echo '{"family":"python-web-app","networkMode":"awsvpc","requiresCompatibilities":["FARGATE"],"cpu":"256","memory":"512","executionRoleArn":"arn:aws:iam::600627318522:role/ecsTaskExecutionRole","containerDefinitions":[{"name":"python-web-app","image":"nginx","essential":true,"portMappings":[{"containerPort":5000,"hostPort":5000,"protocol":"tcp"}]}]}' > task-definition.json
-        else
-          aws ecs describe-task-definition --task-definition ${{ env.RESOURCE_PREFIX }} --region ${{ env.AWS_REGION }} --query taskDefinition > task-definition.json
-        fi
-
-    - name: Fill in the new image ID in the Amazon ECS task definition
-      id: task-def
-      uses: aws-actions/amazon-ecs-render-task-definition@v1
-      with:
-        task-definition: task-definition.json
-        container-name: ${{ env.RESOURCE_PREFIX }}
-        image: ${{ steps.build-image.outputs.image }}
-
-    - name: Deploy Amazon ECS task definition
+    - name: Deploy to ECS
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
-        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        task-definition: ./infrastructure/task-definition.json
         service: ${{ env.ECS_SERVICE }}
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
@@ -100,4 +116,31 @@ jobs:
     - name: Verify deployment
       run: |
         sleep 30
-        echo "Deployment completed. Verify manually via AWS Console."
+        echo "Testing application health endpoint..."
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ env.CLOUDFRONT_DOMAIN }}/health || true)
+        
+        if [ "$response" -eq 200 ]; then
+          echo "✅ Deployment successful! Health check returned 200"
+        else
+          echo "❌ Deployment verification failed. Health check returned: $response"
+          exit 1
+        fi
+
+  rollback:
+    runs-on: windows-latest
+    needs: build-and-deploy
+    if: failure()
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Rollback ECS service
+      run: |
+        .\scripts\rollback.ps1

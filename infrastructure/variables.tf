@@ -16,16 +16,6 @@ variable "app_name" {
   default     = "python-web-app"
 }
 
-variable "github_owner" {
-  description = "GitHub owner/organization"
-  type        = string
-}
-
-variable "github_repo" {
-  description = "GitHub repository name"
-  type        = string
-}
-
 variable "vpc_cidr" {
   description = "CIDR block for VPC"
   type        = string
