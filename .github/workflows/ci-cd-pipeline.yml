@@ -32,7 +32,7 @@ jobs:
 
     - name: Run tests
       run: |
-        cd app/tests
+        cd app
         python -m pytest tests/ -v
 
   build-and-deploy:
