@@ -1,4 +1,3 @@
-# ECR Repository with lifecycle policy to prevent recreation
 resource "aws_ecr_repository" "app" {
   name = var.app_name
 
@@ -6,17 +5,12 @@ resource "aws_ecr_repository" "app" {
     scan_on_push = true
   }
 
-  # Prevent recreation if already exists
   lifecycle {
     ignore_changes = [name]
   }
 }
 
-# ECR Repository policy to allow GitHub Actions access
-resource "aws_ecr_repository_policy" "app" {
-  repository = aws_ecr_repository.app.name
-  policy     = data.aws_iam_policy_document.ecr_policy.json
-}
+data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "ecr_policy" {
   statement {
@@ -45,4 +39,9 @@ data "aws_iam_policy_document" "ecr_policy" {
       values   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/github-actions-role"]
     }
   }
+}
+
+resource "aws_ecr_repository_policy" "app" {
+  repository = aws_ecr_repository.app.name
+  policy     = data.aws_iam_policy_document.ecr_policy.json
 }
