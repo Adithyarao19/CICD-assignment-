@@ -4,7 +4,7 @@ This project implements a complete CI/CD pipeline for a Python web application u
 
 ## Architecture
 
-![Architecture Diagram](https://via.placeholder.com/800x400.png?text=CI/CD+Architecture+Diagram)
+
 
 The architecture consists of:
 1. **GitHub Actions** for CI/CD automation

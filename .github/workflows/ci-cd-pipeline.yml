@@ -29,12 +29,12 @@ jobs:
       run: |
         cd app
         pip install -r requirements.txt
-        pip install pytest
+        
 
     - name: Run tests
       run: |
         cd app
-        pytest -v
+        python -m pytest tests/ -v
 
   build-and-deploy:
     needs: test
