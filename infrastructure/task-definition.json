@@ -1,20 +1,21 @@
 {
   "family": "python-web-app",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "256",
-  "memory": "512",
-  "executionRoleArn": "arn:aws:iam::<600627318522>:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
       "name": "python-web-app",
-      "image": "<ECR_REPOSITORY_URL>:latest",
+      "image": "YOUR_IMAGE",
+      "essential": true,
+      "memory": 512,
+      "cpu": 256,
       "portMappings": [
-        {
-          "containerPort": 80,
-          "hostPort": 80
-        }
+        { "containerPort": 80, "hostPort": 80 }
       ]
     }
-  ]
+  ],
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::123456789012:role/ecsTaskRole"
 }
