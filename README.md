@@ -56,30 +56,7 @@ A complete CI/CD pipeline for a Python Flask web application deployed on AWS usi
 - **Extensible**: Rich ecosystem of extensions
 - **Production Ready**: Battle-tested in production environments
 
-## 📁 Repository Structure
 
-```
-/
-├── .github/workflows/
-│   └── ci-cd-pipeline.yml          # GitHub Actions workflow
-├── infrastructure/
-│   ├── main.tf                     # Primary Terraform configuration
-│   ├── variables.tf                # Terraform variables
-│   ├── outputs.tf                  # Terraform outputs
-│   └── backend.tf                  # Terraform state configuration
-├── app/
-│   ├── app.py                      # Flask application
-│   ├── requirements.txt            # Python dependencies
-│   ├── Dockerfile                  # Container definition
-│   └── tests/
-│       ├── __init__.py             # Test package initialization
-│       └── test_app.py             # Application tests
-├── scripts/
-│   ├── rollback.ps1                # Windows rollback script
-│   ├── create-ecr.ps1              # ECR setup script
-│   └── test-local.ps1              # Local testing script
-└── README.md                       # This file
-```
 
 ## 🚀 Deployment Process
 
